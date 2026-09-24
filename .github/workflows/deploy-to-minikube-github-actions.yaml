@@ -30,6 +30,13 @@ jobs:
 
       - name: Test app
         run: |
-          URL=$(minikube service nodejs-app --url)
-          echo "Application URL: $URL"
-          curl --fail "$URL"
+          kubectl port-forward service/nodejs-app 3000:80 > /tmp/port-forward.log 2>&1 &
+          PF_PID=$!
+
+          sleep 3
+
+          cat /tmp/port-forward.log
+
+          curl --fail http://127.0.0.1:3000
+
+          kill $PF_PID
