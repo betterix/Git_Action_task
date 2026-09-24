@@ -12,7 +12,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Start Minikube
         uses: medyagh/setup-minikube@latest
@@ -31,6 +31,7 @@ jobs:
         run: |
           docker build \
             --pull \
+            --progress=plain \
             -t node-app:${{ github.sha }} \
             .
 
@@ -43,7 +44,7 @@ jobs:
       - name: Check Kubernetes resources
         run: |
           kubectl get deployment
-          kubectl get pods
+          kubectl get pods -o wide
           kubectl get services
 
       - name: Wait for deployment
@@ -52,11 +53,23 @@ jobs:
             deployment/nodejs-app \
             --timeout=120s
 
-      - name: Verify application
+      - name: Debug Kubernetes deployment
+        if: always()
         run: |
+          echo "=== DEPLOYMENTS ==="
+          kubectl get deployments -o wide
+
+          echo "=== PODS ==="
           kubectl get pods -o wide
-          kubectl describe deployment nodejs-app
-          kubectl get service nodejs-app
+
+          echo "=== POD DESCRIPTION ==="
+          kubectl describe pods -l app=nodejs-app
+
+          echo "=== POD LOGS ==="
+          kubectl logs -l app=nodejs-app --all-containers=true --tail=100 || true
+
+          echo "=== EVENTS ==="
+          kubectl get events --sort-by='.lastTimestamp'
 
       - name: Test application
         run: |
