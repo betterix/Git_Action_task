@@ -18,8 +18,7 @@ jobs:
 
       - name: Build Docker image
         run: |
-          eval "$(minikube docker-env)"
-          docker build --pull -t node-app:latest .
+          minikube image build -t node-app:latest .
 
       - name: Deploy
         run: |
@@ -32,4 +31,5 @@ jobs:
       - name: Test app
         run: |
           URL=$(minikube service nodejs-app --url)
+          echo "Application URL: $URL"
           curl --fail "$URL"

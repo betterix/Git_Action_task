@@ -10,5 +10,4 @@ coverage
 dist
 build
 k8s-node-app.yaml
-Dockerfile
 .dockerignore
