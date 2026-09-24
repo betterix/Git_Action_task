@@ -1,8 +1,18 @@
-FROM node:14
+FROM node:24-alpine
+
 WORKDIR /usr/src/app
-COPY package*.json ./
-RUN npm install
-RUN npm install express
-COPY . .
+
+# Install the latest npm
+RUN npm install -g npm@latest
+
+COPY package.json package-lock.json ./
+
+RUN npm ci --omit=dev && npm cache clean --force
+
+COPY server.js ./
+
+USER node
+
 EXPOSE 3000
-CMD [ "node", "server.js" ]
+
+CMD ["node", "server.js"]

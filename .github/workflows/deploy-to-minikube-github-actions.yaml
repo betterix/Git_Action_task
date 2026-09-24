@@ -1,30 +1,80 @@
-name: Deploy to Minikube using GitHub Actions
+name: Deploy Node.js app to Minikube
 
-on: [push]
-  
+on:
+  push:
+    branches:
+      - main
+
 jobs:
-  job1:
+  deploy:
+    name: Build and deploy Node.js Docker image
     runs-on: ubuntu-latest
-    name: build Node.js Docker Image and deploy to minikube
+
     steps:
-    - uses: actions/checkout@v4
-    - name: Start minikube
-      uses: medyagh/setup-minikube@master
-    - name: Try the cluster !
-      run: kubectl get pods -A
-    - name: Build image
-      run: |
-          export SHELL=/bin/bash
-          eval $(minikube -p minikube docker-env)
-          docker build -f ./Dockerfile -t devopshint/node-app:latest .
-          echo -n "verifying images:"
-          docker images         
-    - name: Deploy to minikube
-      run:
-        kubectl apply -f k8s-node-app.yaml
-    - name: Wait for deployment rollout
-      run: kubectl rollout status deployment/nodejs-app --timeout=120s
-    - name: Test service URLs
-      run: |
-          minikube service list
-          minikube service nodejs-app --url
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Start Minikube
+        uses: medyagh/setup-minikube@latest
+
+      - name: Verify Kubernetes cluster
+        run: |
+          kubectl version --client
+          kubectl get nodes
+          kubectl get pods -A
+
+      - name: Configure Docker to use Minikube
+        run: |
+          eval "$(minikube docker-env)"
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            --pull \
+            -t node-app:${{ github.sha }} \
+            .
+
+          docker images node-app
+
+      - name: Deploy application
+        run: |
+          sed "s|IMAGE_TAG|${{ github.sha }}|g" k8s-node-app.yaml | kubectl apply -f -
+
+      - name: Check Kubernetes resources
+        run: |
+          kubectl get deployment
+          kubectl get pods
+          kubectl get services
+
+      - name: Wait for deployment
+        run: |
+          kubectl rollout status \
+            deployment/nodejs-app \
+            --timeout=120s
+
+      - name: Verify application
+        run: |
+          kubectl get pods -o wide
+          kubectl describe deployment nodejs-app
+          kubectl get service nodejs-app
+
+      - name: Test application
+        run: |
+          URL=$(minikube service nodejs-app --url)
+
+          echo "Application URL: $URL"
+
+          for i in {1..30}; do
+            if curl --fail --silent "$URL"; then
+              echo
+              echo "Application is working!"
+              exit 0
+            fi
+
+            echo "Waiting for application..."
+            sleep 2
+          done
+
+          echo "Application failed to respond"
+          kubectl logs deployment/nodejs-app
+          exit 1
