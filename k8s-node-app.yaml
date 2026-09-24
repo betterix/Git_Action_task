@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: nodejs-app
-          image: node-app:IMAGE_TAG
+          image: node-app:latest
           imagePullPolicy: Never
           ports:
             - containerPort: 3000
@@ -28,7 +28,6 @@ spec:
             limits:
               cpu: 250m
               memory: 128Mi
-
 ---
 apiVersion: v1
 kind: Service

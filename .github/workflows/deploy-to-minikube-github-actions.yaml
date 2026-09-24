@@ -1,4 +1,4 @@
-name: Deploy Node.js app to Minikube
+name: Build and run Node.js app
 
 on:
   push:
@@ -7,87 +7,29 @@ on:
 
 jobs:
   deploy:
-    name: Build and deploy Node.js Docker image
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v5
 
       - name: Start Minikube
         uses: medyagh/setup-minikube@latest
 
-      - name: Verify Kubernetes cluster
-        run: |
-          kubectl version --client
-          kubectl get nodes
-          kubectl get pods -A
-
-      - name: Configure Docker to use Minikube
-        run: |
-          eval "$(minikube docker-env)"
-
       - name: Build Docker image
         run: |
-          docker build \
-            --pull \
-            --progress=plain \
-            -t node-app:${{ github.sha }} \
-            .
+          eval "$(minikube docker-env)"
+          docker build --pull -t node-app:latest .
 
-          docker images node-app
-
-      - name: Deploy application
+      - name: Deploy
         run: |
-          sed "s|IMAGE_TAG|${{ github.sha }}|g" k8s-node-app.yaml | kubectl apply -f -
+          kubectl apply -f k8s-node-app.yaml
 
-      - name: Check Kubernetes resources
+      - name: Wait for app
         run: |
-          kubectl get deployment
-          kubectl get pods -o wide
-          kubectl get services
+          kubectl rollout status deployment/nodejs-app --timeout=120s
 
-      - name: Wait for deployment
-        run: |
-          kubectl rollout status \
-            deployment/nodejs-app \
-            --timeout=120s
-
-      - name: Debug Kubernetes deployment
-        if: always()
-        run: |
-          echo "=== DEPLOYMENTS ==="
-          kubectl get deployments -o wide
-
-          echo "=== PODS ==="
-          kubectl get pods -o wide
-
-          echo "=== POD DESCRIPTION ==="
-          kubectl describe pods -l app=nodejs-app
-
-          echo "=== POD LOGS ==="
-          kubectl logs -l app=nodejs-app --all-containers=true --tail=100 || true
-
-          echo "=== EVENTS ==="
-          kubectl get events --sort-by='.lastTimestamp'
-
-      - name: Test application
+      - name: Test app
         run: |
           URL=$(minikube service nodejs-app --url)
-
-          echo "Application URL: $URL"
-
-          for i in {1..30}; do
-            if curl --fail --silent "$URL"; then
-              echo
-              echo "Application is working!"
-              exit 0
-            fi
-
-            echo "Waiting for application..."
-            sleep 2
-          done
-
-          echo "Application failed to respond"
-          kubectl logs deployment/nodejs-app
-          exit 1
+          curl --fail "$URL"
